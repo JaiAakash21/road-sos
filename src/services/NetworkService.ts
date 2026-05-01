@@ -1,6 +1,5 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { useAppStore } from '../store/useAppStore';
-import { OfflineTileService } from './OfflineTileService';
 
 /**
  * Service to monitor network changes and update app network mode.
@@ -33,26 +32,19 @@ export class NetworkService {
   }
 
   /**
-   * Logic to determine if we are online, offline, or sos mode
+   * Logic to determine if we are online or offline mode.
+   * Without offline tile support, if disconnected we just go to offline mode.
+   * Leaflet map will try to use cache or show a blank grid.
    */
-  private static async handleNetworkChange(state: NetInfoState) {
+  private static handleNetworkChange(state: NetInfoState) {
     const { setNetworkMode } = useAppStore.getState();
     const isConnected = state.isConnected && state.isInternetReachable !== false;
 
     if (isConnected) {
-      // Connected + we could have tiles ready or not, but we have internet -> online
       setNetworkMode('online');
     } else {
-      // Disconnected: check if we have any offline tiles downloaded
-      const packs = await OfflineTileService.listRegions();
-      
-      if (packs && packs.length > 0) {
-        // Disconnected + tiles ready -> offline mode
-        setNetworkMode('offline');
-      } else {
-        // Disconnected + no tiles -> sos mode (worst case scenario)
-        setNetworkMode('sos');
-      }
+      // Disconnected, directly set offline mode.
+      setNetworkMode('offline');
     }
   }
 }

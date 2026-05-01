@@ -1,63 +1,64 @@
-import React, { useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import Mapbox, { MapView, Camera, PointAnnotation, UserLocation } from '@rnmapbox/maps';
+import { LeafletView } from 'react-native-leaflet-view';
 import { useAppStore } from '../../store/useAppStore';
 
-// Initialize Mapbox token here (should be in .env in production)
-// Mapbox.setAccessToken('YOUR_PUBLIC_ACCESS_TOKEN');
-
 export const MapProvider = () => {
-  const { userLocation, traumaCenters, networkMode } = useAppStore();
+  const { userLocation, traumaCenters, selectedHospital, routeGeometry } = useAppStore();
 
-  useEffect(() => {
-    Mapbox.setTelemetryEnabled(false);
-  }, []);
+  const defaultCoordinates = { lat: 13.0827, lng: 80.2707 }; // Chennai
 
-  // Chennai default coordinates
-  const defaultCoordinates = [80.2707, 13.0827]; // [longitude, latitude]
+  const mapCenterPosition = userLocation 
+    ? { lat: userLocation.latitude, lng: userLocation.longitude } 
+    : defaultCoordinates;
 
-  // We rely on Mapbox's automatic offline cache. If networkMode is 'offline', 
-  // Mapbox will transparently use the downloaded pack that matches the current region/style.
-  
+  // Convert traumaCenters to Leaflet mapMarkers
+  const markers = useMemo(() => {
+    return traumaCenters.map((center, index) => ({
+      id: `hospital-${center.id}`,
+      position: {
+        lat: center.location.latitude,
+        lng: center.location.longitude,
+      },
+      icon: center.id === selectedHospital?.id ? '🏥' : '📍', // LeafletView handles emojis nicely as basic icons
+      size: [32, 32],
+    }));
+  }, [traumaCenters, selectedHospital]);
+
+  // Convert routeGeometry (array of {lat, lng}) to Leaflet mapShapes
+  const shapes = useMemo(() => {
+    if (!routeGeometry || !Array.isArray(routeGeometry) || routeGeometry.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        shapeType: 'Polyline',
+        id: 'route-polyline',
+        positions: routeGeometry,
+        color: '#3B82F6', // Blue route
+        weight: 5,
+      }
+    ];
+  }, [routeGeometry]);
+
   return (
     <View style={styles.container}>
-      <MapView 
-        style={styles.map} 
-        styleURL={Mapbox.StyleURL.Street}
-        logoEnabled={false}
-      >
-        <Camera
-          zoomLevel={12} // Start slightly more zoomed out to see the offline area
-          centerCoordinate={
-            userLocation 
-              ? [userLocation.longitude, userLocation.latitude] 
-              : defaultCoordinates
-          }
-          animationMode="flyTo"
-          animationDuration={2000}
-        />
-
-        {/* User Location */}
-        {userLocation && (
-          <UserLocation
-             visible={true}
-             showsUserHeadingIndicator={true}
-          />
-        )}
-
-        {/* Trauma Center Markers */}
-        {traumaCenters.map((center) => (
-          <PointAnnotation
-            key={center.id}
-            id={center.id}
-            coordinate={[center.location.longitude, center.location.latitude]}
-          >
-            <View style={styles.markerContainer}>
-              <Text style={styles.markerText}>🏥</Text>
-            </View>
-          </PointAnnotation>
-        ))}
-      </MapView>
+      <LeafletView
+        mapCenterPosition={mapCenterPosition}
+        zoom={13}
+        mapMarkers={markers}
+        mapShapes={shapes}
+        // Optional configuration if we wanted custom tile servers:
+        // mapLayers={[{
+        //   baseLayerName: 'OpenStreetMap',
+        //   baseLayerIsChecked: true,
+        //   layerType: 'TileLayer',
+        //   baseLayer: true,
+        //   url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        // }]}
+      />
+      {/* Fallback if map fails loading tiles in offline mode, markers will still render on grid */}
     </View>
   );
 };
@@ -65,19 +66,6 @@ export const MapProvider = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E1E1E', // Dark fallback
+    backgroundColor: '#E5E7EB', // Grey fallback grid color
   },
-  map: {
-    flex: 1,
-  },
-  markerContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 5,
-    borderWidth: 2,
-    borderColor: '#E63946',
-  },
-  markerText: {
-    fontSize: 20,
-  }
 });

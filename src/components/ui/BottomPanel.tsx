@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useAppStore } from '../../store/useAppStore';
-import { Navigation, MapPin, DownloadCloud, CheckCircle } from 'lucide-react-native';
+import { Navigation, MapPin, AlertTriangle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { OfflineTileService } from '../../services/OfflineTileService';
 
 const CACHE_KEY = '@trauma_centers_cache';
 
@@ -12,23 +11,19 @@ export const BottomPanel = () => {
     traumaCenters, 
     setTraumaCenters, 
     networkMode, 
-    offlineDownloadState,
-    userLocation
+    sortedHospitals,
+    selectedHospital
   } = useAppStore();
 
   useEffect(() => {
-    // Simulate fetching logic
     const fetchCenters = async () => {
       try {
         if (networkMode === 'offline' || networkMode === 'sos') {
-          // Load from cache first if offline
           const cached = await AsyncStorage.getItem(CACHE_KEY);
           if (cached) {
             setTraumaCenters(JSON.parse(cached));
           }
         } else {
-          // If online, we would fetch from API here.
-          // For now, mock data is already in store, so let's just cache it.
           await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(traumaCenters));
         }
       } catch (e) {
@@ -36,50 +31,66 @@ export const BottomPanel = () => {
       }
     };
     fetchCenters();
-  }, [networkMode]); // Re-run when network mode changes
+  }, [networkMode]);
 
-  const handleDownloadMap = () => {
-    if (userLocation) {
-      OfflineTileService.downloadRegion(userLocation.latitude, userLocation.longitude);
-    } else {
-      console.warn("No user location to center download.");
+  const handleSOS = () => {
+    console.log("Trigger SOS for", selectedHospital?.name);
+  };
+
+  const renderHeader = () => {
+    if (sortedHospitals.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No hospitals available offline.</Text>
+        </View>
+      );
     }
+
+    if (!selectedHospital) return null;
+
+    return (
+      <View style={styles.selectedCard}>
+        <View style={styles.selectedCardHeader}>
+          <View style={styles.iconContainerSelected}>
+            <MapPin color="#10B981" size={28} />
+          </View>
+          <View style={styles.selectedCardText}>
+            <Text style={styles.selectedLabel}>NEAREST HOSPITAL</Text>
+            <Text style={styles.hospitalNameLarge}>{selectedHospital.name}</Text>
+            <Text style={styles.distanceTextLarge}>{selectedHospital.distanceString}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.primaryButton}>
+            <Navigation color="#FFFFFF" size={20} style={{ marginRight: 8 }} />
+            <Text style={styles.buttonText}>Navigate</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.dangerButton} onPress={handleSOS}>
+            <AlertTriangle color="#FFFFFF" size={20} style={{ marginRight: 8 }} />
+            <Text style={styles.buttonText}>SOS</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.dragHandle} />
       
-      {/* Offline Download Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Nearest Trauma Centers</Text>
-        
-        {networkMode === 'online' && offlineDownloadState.status !== 'ready' && (
-          <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadMap}>
-            {offlineDownloadState.status === 'downloading' ? (
-              <View style={styles.downloadingContainer}>
-                <ActivityIndicator size="small" color="#1D4ED8" />
-                <Text style={styles.downloadText}>{offlineDownloadState.progress}%</Text>
-              </View>
-            ) : (
-              <>
-                <DownloadCloud color="#1D4ED8" size={16} />
-                <Text style={styles.downloadText}>Download Map</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {offlineDownloadState.status === 'ready' && (
-           <View style={styles.readyContainer}>
-             <CheckCircle color="#10B981" size={16} />
-             <Text style={styles.readyText}>Offline Ready</Text>
-           </View>
-        )}
+        <Text style={styles.title}>Emergency Centers</Text>
       </View>
       
+      {/* Nearest Hospital Highlight */}
+      {renderHeader()}
+
+      <Text style={styles.subTitle}>Other Nearby Options</Text>
+      
       <FlatList
-        data={traumaCenters}
+        data={sortedHospitals.filter(h => h.id !== selectedHospital?.id)}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
@@ -87,17 +98,13 @@ export const BottomPanel = () => {
           <TouchableOpacity style={styles.card} activeOpacity={0.8}>
             <View style={styles.cardInfo}>
               <View style={styles.iconContainer}>
-                <MapPin color="#E63946" size={24} />
+                <MapPin color="#EF4444" size={20} />
               </View>
               <View>
                 <Text style={styles.hospitalName}>{item.name}</Text>
                 <Text style={styles.distanceText}>{item.distanceString}</Text>
               </View>
             </View>
-            
-            <TouchableOpacity style={styles.routeButton}>
-              <Navigation color="#FFFFFF" size={20} />
-            </TouchableOpacity>
           </TouchableOpacity>
         )}
       />
@@ -114,7 +121,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: '40%',
+    height: '50%',
     paddingHorizontal: 20,
     paddingTop: 12,
     shadowColor: '#000',
@@ -142,44 +149,95 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  downloadButton: {
-    flexDirection: 'row',
+  subTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  emptyContainer: {
+    padding: 20,
     alignItems: 'center',
-    backgroundColor: '#DBEAFE', // Light blue
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: '#FEF2F2',
     borderRadius: 16,
   },
-  downloadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  downloadText: {
-    color: '#1D4ED8',
-    fontSize: 12,
+  emptyText: {
+    color: '#EF4444',
     fontWeight: '600',
-    marginLeft: 6,
   },
-  readyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5', // Light green
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  selectedCard: {
+    backgroundColor: '#F0FDF4', // Light green
     borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
-  readyText: {
-    color: '#065F46',
-    fontSize: 12,
+  selectedCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  iconContainerSelected: {
+    backgroundColor: '#D1FAE5',
+    padding: 12,
+    borderRadius: 16,
+    marginRight: 16,
+  },
+  selectedCardText: {
+    flex: 1,
+  },
+  selectedLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  hospitalNameLarge: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  distanceTextLarge: {
+    fontSize: 14,
+    color: '#059669',
     fontWeight: '600',
-    marginLeft: 6,
+    marginTop: 2,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  primaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#1D4ED8',
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  dangerButton: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#EF4444',
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   listContainer: {
     paddingBottom: 20,
   },
   card: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
@@ -197,18 +255,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   hospitalName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   distanceText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6B7280',
   },
-  routeButton: {
-    backgroundColor: '#1D4ED8',
-    padding: 12,
-    borderRadius: 12,
-  }
 });
