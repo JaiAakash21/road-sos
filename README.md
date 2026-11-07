@@ -1,5 +1,7 @@
 # ROAD SAS - Smart Offline & Online Emergency Assistance and Navigation System
 
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white) ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white) ![Mapbox](https://img.shields.io/badge/Mapbox-000000?style=flat-square&logo=mapbox&logoColor=white) ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white) ![Offline--first](https://img.shields.io/badge/Offline----first-blue?style=flat-square)
+
 <p align="center">
   <img src="assets/car.png" width="150" alt="ROAD SAS Logo">
 </p>
